@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, Copy, AlertTriangle, Sparkles, RotateCcw } from 'lucide-react'
-import type { DescricaoResponse } from '@/lib/schema'
+import type { DescricaoResponse, DescricaoFinal } from '@/lib/schema'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -32,9 +32,49 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
   )
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function buildCombinedHtml(d: DescricaoFinal): string {
+  const parts: string[] = []
+
+  if (d.descricao_curta?.trim()) {
+    parts.push(`<p>${escapeHtml(d.descricao_curta.trim())}</p>`)
+  }
+
+  if (d.descricao_longa_html?.trim()) {
+    parts.push(d.descricao_longa_html.trim())
+  }
+
+  if (d.bullets_beneficios?.length) {
+    parts.push('<h2>Principais benefícios</h2>')
+    parts.push(
+      '<ul>\n' +
+        d.bullets_beneficios.map((b) => `  <li>${escapeHtml(b)}</li>`).join('\n') +
+        '\n</ul>',
+    )
+  }
+
+  if (d.faq?.length) {
+    parts.push('<h2>Perguntas frequentes</h2>')
+    for (const item of d.faq) {
+      parts.push(
+        `<h3>${escapeHtml(item.pergunta)}</h3>\n<p>${escapeHtml(item.resposta)}</p>`,
+      )
+    }
+  }
+
+  return parts.join('\n\n')
+}
+
 export function DescricaoResultado({ result, onReset }: Props) {
   const { descricao_final: d, status, problemas_encontrados } = result
   const temProblemas = problemas_encontrados && problemas_encontrados.length > 0
+  const combinedHtml = buildCombinedHtml(d)
 
   return (
     <div className="space-y-6">
@@ -77,7 +117,7 @@ export function DescricaoResultado({ result, onReset }: Props) {
         </Card>
       )}
 
-      {/* H1 e meta */}
+      {/* H1 e meta description — separados */}
       <Card>
         <CardHeader>
           <CardTitle>SEO</CardTitle>
@@ -89,76 +129,28 @@ export function DescricaoResultado({ result, onReset }: Props) {
         </CardContent>
       </Card>
 
-      {/* Descrição curta */}
+      {/* Bloco único com tudo junto */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-          <CardTitle>Descrição curta</CardTitle>
-          <CopyButton text={d.descricao_curta} />
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm leading-relaxed text-muted-foreground">{d.descricao_curta}</p>
-        </CardContent>
-      </Card>
-
-      {/* Bullets */}
-      {d.bullets_beneficios?.length > 0 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-            <CardTitle>Bullets de benefícios</CardTitle>
-            <CopyButton text={d.bullets_beneficios.map((b) => `• ${b}`).join('\n')} />
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc space-y-1.5 pl-5 text-sm">
-              {d.bullets_beneficios.map((b, i) => (
-                <li key={i}>{b}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Descrição longa HTML com preview + source */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
           <div>
-            <CardTitle>Descrição longa (HTML)</CardTitle>
-            <CardDescription>Preview sanitizado + código-fonte.</CardDescription>
+            <CardTitle>Descrição completa (HTML)</CardTitle>
+            <CardDescription>
+              Descrição curta + longa + benefícios + FAQ num único bloco, pronto pra colar.
+            </CardDescription>
           </div>
-          <CopyButton text={d.descricao_longa_html} label="Copiar HTML" />
+          <CopyButton text={combinedHtml} label="Copiar HTML" />
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-md border bg-white p-4 overflow-auto">
-              <HtmlPreview html={d.descricao_longa_html} />
+              <HtmlPreview html={combinedHtml} />
             </div>
-            <pre className="max-h-[420px] overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">
-              <code>{d.descricao_longa_html}</code>
+            <pre className="max-h-[520px] overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">
+              <code>{combinedHtml}</code>
             </pre>
           </div>
         </CardContent>
       </Card>
-
-      {/* FAQ */}
-      {d.faq?.length > 0 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-            <CardTitle>FAQ ({d.faq.length})</CardTitle>
-            <CopyButton
-              text={d.faq.map((f) => `P: ${f.pergunta}\nR: ${f.resposta}`).join('\n\n')}
-            />
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-4">
-              {d.faq.map((f, i) => (
-                <li key={i} className="border-l-2 border-primary/40 pl-4">
-                  <p className="text-sm font-medium">{f.pergunta}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{f.resposta}</p>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
