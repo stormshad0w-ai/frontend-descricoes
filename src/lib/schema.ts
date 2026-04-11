@@ -29,3 +29,23 @@ export const descricaoSchema = z.object({
 
 export type DescricaoFormData = z.infer<typeof descricaoSchema>
 export type Imagem = z.infer<typeof imagemSchema>
+
+export interface FaqItem {
+  pergunta: string
+  resposta: string
+}
+
+export interface DescricaoFinal {
+  h1: string
+  meta_description: string
+  descricao_curta: string
+  descricao_longa_html: string
+  bullets_beneficios: string[]
+  faq: FaqItem[]
+}
+
+export interface DescricaoResponse {
+  status?: string
+  problemas_encontrados?: string[]
+  descricao_final: DescricaoFinal
+}

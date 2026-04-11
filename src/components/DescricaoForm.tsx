@@ -1,8 +1,13 @@
 import { useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, Send, CheckCircle2, AlertCircle } from 'lucide-react'
-import { descricaoSchema, type DescricaoFormData } from '@/lib/schema'
+import { Loader2, Send, AlertCircle } from 'lucide-react'
+import {
+  descricaoSchema,
+  type DescricaoFormData,
+  type DescricaoResponse,
+  type DescricaoFinal,
+} from '@/lib/schema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -10,14 +15,33 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { ImageUpload } from '@/components/ImageUpload'
 import { HtmlPreview } from '@/components/HtmlPreview'
+import { DescricaoResultado } from '@/components/DescricaoResultado'
 
 const WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL as string
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
+function normalizeResponse(raw: unknown): DescricaoResponse | null {
+  // n8n às vezes envelopa em array, ou em { data }, ou devolve só o objeto
+  const unwrap = (v: unknown): unknown => {
+    if (Array.isArray(v)) return unwrap(v[0])
+    if (v && typeof v === 'object' && 'data' in v) return unwrap((v as { data: unknown }).data)
+    return v
+  }
+
+  const obj = unwrap(raw)
+  if (!obj || typeof obj !== 'object') return null
+
+  const candidate = obj as Partial<DescricaoResponse> & { descricao_final?: DescricaoFinal }
+  if (!candidate.descricao_final || typeof candidate.descricao_final !== 'object') return null
+
+  return candidate as DescricaoResponse
+}
+
 export function DescricaoForm() {
   const [status, setStatus] = useState<Status>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  const [result, setResult] = useState<DescricaoResponse | null>(null)
 
   const {
     register,
@@ -50,6 +74,7 @@ export function DescricaoForm() {
 
     setStatus('loading')
     setErrorMsg('')
+    setResult(null)
 
     try {
       const res = await fetch(WEBHOOK_URL, {
@@ -64,6 +89,14 @@ export function DescricaoForm() {
         throw new Error(`HTTP ${res.status} — ${body.slice(0, 300) || 'sem corpo de resposta'}`)
       }
 
+      const json: unknown = await res.json()
+      const parsed = normalizeResponse(json)
+      if (!parsed) {
+        console.error('[n8n webhook] resposta sem descricao_final:', json)
+        throw new Error('Resposta do n8n não contém "descricao_final". Verifique o fluxo.')
+      }
+
+      setResult(parsed)
       setStatus('success')
       reset()
     } catch (err) {
@@ -72,16 +105,15 @@ export function DescricaoForm() {
     }
   }
 
-  if (status === 'success') {
+  if (status === 'success' && result) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-        <CheckCircle2 className="h-16 w-16 text-green-500" />
-        <h2 className="text-2xl font-semibold">Enviado com sucesso!</h2>
-        <p className="text-muted-foreground">
-          A descrição foi enviada para o n8n para processamento.
-        </p>
-        <Button onClick={() => setStatus('idle')}>Criar nova descrição</Button>
-      </div>
+      <DescricaoResultado
+        result={result}
+        onReset={() => {
+          setResult(null)
+          setStatus('idle')
+        }}
+      />
     )
   }
 
