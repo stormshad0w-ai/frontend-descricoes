@@ -58,7 +58,11 @@ export function DescricaoForm() {
         body: JSON.stringify(data),
       })
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) {
+        const body = await res.text()
+        console.error('[n8n webhook error]', res.status, body)
+        throw new Error(`HTTP ${res.status} — ${body.slice(0, 300) || 'sem corpo de resposta'}`)
+      }
 
       setStatus('success')
       reset()

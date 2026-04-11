@@ -9,6 +9,7 @@ COPY . .
 
 # Build-time env var — embutido no bundle pelo Vite
 ARG VITE_N8N_WEBHOOK_URL
+ENV VITE_N8N_WEBHOOK_URL=$VITE_N8N_WEBHOOK_URL
 
 RUN npm run build
 
